@@ -13,6 +13,8 @@ FastAPI, Pydantic, SQLAlchemy(비동기, asyncpg), PostgreSQL 17(Docker), PyJWT,
 board-api/
 ├── pyproject.toml, uv.lock
 ├── docker-compose.yml        로컬 PostgreSQL 17 (호스트 포트 5434)
+├── docker-compose.prod.yml   서버 배포용 (앱 + DB, DB 포트 비공개)
+├── Dockerfile, .dockerignore 앱 이미지 빌드
 ├── .env.example              DATABASE_URL, SECRET_KEY
 ├── scripts/smoke_test.py     동작 확인 스크립트
 └── src/
@@ -77,6 +79,43 @@ uv run uvicorn main:app --app-dir src --reload
 ```
 uv run python scripts/smoke_test.py
 ```
+
+## 배포 (AWS EC2 + Docker Compose)
+
+EC2 한 대에 앱과 DB를 함께 띄우는 최소 구성입니다.
+
+1. EC2 생성: Ubuntu 24.04, 보안그룹 인바운드는 22(내 IP만)와 8000만 엽니다. 5432는 열지 않습니다.
+2. 서버 준비 후 코드 받기:
+
+```
+sudo apt update && sudo apt install -y docker.io docker-compose-v2 git
+sudo usermod -aG docker ubuntu   # 로그아웃 후 다시 접속
+git clone https://github.com/Alexandros509/kant-ax1-backend-api.git
+cd kant-ax1-backend-api
+```
+
+3. 서버용 `.env` 작성 (로컬 값을 복사하지 말고 새 무작위 값 사용):
+
+```
+POSTGRES_PASSWORD=<무작위 값>
+DATABASE_URL=postgresql+asyncpg://postgres:<같은 값>@db:5432/postgres
+SECRET_KEY=<무작위 값>
+```
+
+4. 실행과 확인:
+
+```
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml logs app
+```
+
+`http://<퍼블릭IP>:8000/docs`가 열리면 로컬 PC에서 서버 대상으로 동작 확인을 합니다.
+
+```
+$env:BASE_URL = "http://<퍼블릭IP>:8000"; uv run python scripts/smoke_test.py
+```
+
+주의: HTTP만 쓰므로 비밀번호와 토큰이 평문으로 전송됩니다. 시연 후에는 인스턴스를 종료(Terminate)해 요금이 나가지 않게 합니다.
 
 ## 인증 흐름
 
